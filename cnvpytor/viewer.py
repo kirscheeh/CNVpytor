@@ -25,8 +25,10 @@ import traceback
 import os
 import sys
 import datetime
+import pandas as pd
+from statistics import median
 
-_logger = logging.getLogger("cnvpytor.viewer")
+_logger = logging.getLogger("HALLO.log")
 
 
 class Reader:
@@ -326,7 +328,7 @@ class Figure(ViewParams):
 
 
 class Viewer(Show, Figure, HelpDescription):
-
+    
     def __init__(self, files, params={}, force_agg=False, history_file_size=1000):
         """
 
@@ -338,9 +340,12 @@ class Viewer(Show, Figure, HelpDescription):
             List of parameters different from default to be passed to ViewParams class.
 
         """
+        
+        
         _logger.debug("Viewer class init: files [%s], params %s." % (", ".join(files), str(params)))
         Figure.__init__(self, params, force_agg=force_agg)
         Show.__init__(self, files)
+        self.annotations = pd.read_csv("annotations_nphd.tsv", sep="\t", header=None, names=['chr', 'start', 'stop', 'name'], dtype={'chr':str, 'start':int, 'stop':int, 'name':str})
         self.history_file_size = history_file_size
         self.cnvpytor_dir = os.path.expanduser('~/.cnvpytor')
         self.save_history = False
@@ -369,7 +374,7 @@ class Viewer(Show, Figure, HelpDescription):
     def parse(self, command):
         current = "regions"
         regions = []
-
+        print(command)
         for p in command:
             if p.isdigit() and (int(p) % 100) == 0:
                 self.bin_size = int(p)
@@ -1444,6 +1449,7 @@ class Viewer(Show, Figure, HelpDescription):
             workbook.close()
 
     def manhattan(self, plot_type="rd"):
+        print("HAHAHAHAHA")
         bin_size = self.bin_size
         if self.reference_genome is None:
             _logger.warning("Missing reference genome required for manhattan.")
@@ -1458,7 +1464,8 @@ class Viewer(Show, Figure, HelpDescription):
             ax.set_title(self.file_title(ix[i]), position=(0.01, 1.01),
                          fontdict={'verticalalignment': 'bottom', 'horizontalalignment': 'left'})
 
-            if plot_type == "rd":
+            if plot_type == "rd": # default
+                print("YES")
                 chroms = []
                 for c, (l, t) in self.reference_genome["chromosomes"].items():
                     rd_chr = io.rd_chromosome_name(c)
@@ -1466,11 +1473,12 @@ class Viewer(Show, Figure, HelpDescription):
                         if io.signal_exists(rd_chr, bin_size, "RD", 0) and \
                                 io.signal_exists(rd_chr, bin_size, "RD", FLAG_GC_CORR) and \
                                 (Genome.is_autosome(c) or Genome.is_sex_chrom(c)):
+                            print(rd_chr, l)
                             chroms.append((rd_chr, l))
 
                 apos = 0
                 xticks = [0]
-
+                # TODO: find x and y in plots to annotate with plt.annotate
                 max_m, stdev = io.rd_normal_level(bin_size, FLAG_GC_CORR)
                 for c, l in chroms:
                     flag_rd = (FLAG_USEMASK if self.rd_use_mask else 0)
@@ -1518,6 +1526,7 @@ class Viewer(Show, Figure, HelpDescription):
                             plt.plot(pos, his_p_mosaic_2d, "k")
                     apos += len(his_p)
                     xticks.append(apos)
+                    print(xticks)
                 ax.xaxis.set_ticklabels([])
                 ax.yaxis.set_ticklabels([])
                 ax.yaxis.set_ticks(np.arange(0, 15, 0.5) * max_m, minor=[])
@@ -2548,13 +2557,39 @@ class Viewer(Show, Figure, HelpDescription):
                     ax.axvline(i + 0.5, color="g", lw=1)
                 self.fig.add_subplot(ax)
 
+    def get_annotation(self, io, c, mean, bin_size, rd_flag) -> list:
+
+        if not c in self.annotations['chr'].tolist():
+            return None
+        
+        tmp = self.annotations[self.annotations['chr'] == c]
+        rd = io.get_signal(c, bin_size,"RD partition",rd_flag)
+        
+        results = []
+        
+        for _, (_, start, stop, name) in tmp.iterrows():
+
+            values = []
+            for i,x in enumerate(rd):
+                if i*bin_size >= start and i*bin_size <= stop:
+                    values.append(x)
+            if len(values) == 0:
+                continue
+            mean_pos  = median(values) 
+            x_coord = int(start/bin_size)
+            results.append((x_coord, mean_pos, name))
+        
+        return results
+    
     def global_plot(self):
         chroms = []
         for c, (l, t) in self.reference_genome["chromosomes"].items():
+
             rd_chr = self.io[self.plot_files[0]].rd_chromosome_name(c)
             if (len(self.chrom) == 0 or (rd_chr in self.chrom) or (c in self.chrom)) and rd_chr is not None:
                 if (Genome.is_autosome(c) or Genome.is_sex_chrom(c)):
                     chroms.append((rd_chr, l))
+                    
         panels = self.panels
         bin_size = self.bin_size
         snp_flag = (FLAG_USEMASK if self.snp_use_mask else 0) | (FLAG_USEID if self.snp_use_id else 0) | (
@@ -2562,10 +2597,15 @@ class Viewer(Show, Figure, HelpDescription):
         rd_flag = (FLAG_USEMASK if self.rd_use_mask else 0) | (FLAG_GC_CORR if self.rd_use_gc_corr else 0)
         n = len(self.plot_files)
         self.new_figure(panel_count=n)
+        
+        bbox = dict(boxstyle ="round", fc ="lightgray", pad=0.3, lw=0, alpha=0.7)
+
         for ii in range(len(self.plot_files)):
             ix = self.plot_files[ii]
+
             self.new_subgrid(len(panels), hspace=0.05, wspace=0.05)
             io = self.io[ix]
+            
             for i in range(len(panels)):
                 ax = self.next_subpanel(sharex=True)
                 if i == 0 and self.title:
@@ -2579,14 +2619,25 @@ class Viewer(Show, Figure, HelpDescription):
                     xticks_minor = []
                     xticks_labels = []
                     for c, l in chroms:
+
                         mean, stdev = io.rd_normal_level(bin_size, rd_flag | FLAG_GC_CORR)
                         his_p = io.get_signal(c, bin_size, "RD", rd_flag)
+
                         pos = range(start, start + len(his_p))
                         if self.markersize == "auto":
-                            plt.plot(pos, his_p, ls='', marker='.', markersize=1)
+                            plt.plot(pos, his_p, ls='', marker='.', markersize=1, alpha=0.25)
+                            
                         else:
-                            plt.plot(pos, his_p, ls='', marker='.', markersize=self.markersize)
-                        xticks_minor.append(start + len(his_p) // 2)
+                            plt.plot(pos, his_p, ls='', marker='.', markersize=self.markersize, alpha=0.25)
+                        print(pos)
+                        if anno:=self.get_annotation(io, c, mean, bin_size, rd_flag):
+                            print(anno)
+                            for annox, annoy, annoname in anno:
+                                plt.plot(annox+start, annoy, markersize=3, ls="", marker='o', color="black")
+                                plt.annotate(annoname, (annox+start, annoy+20), color="black", rotation=90, bbox=bbox)
+                        
+                        xticks_minor.append(start + len(his_p) // 2 )
+
                         xticks_labels.append(Genome.canonical_chrom_name(c))
                         start += l // bin_size + 1
                         xticks.append(start)
@@ -2594,6 +2645,7 @@ class Viewer(Show, Figure, HelpDescription):
                     ax.set_xlim([0, start])
                     ax.xaxis.set_ticks(xticks)
                     ax.xaxis.set_ticklabels([""] * len(xticks))
+                    
                     if i == (len(panels) - 1):
                         ax.xaxis.set_ticks(xticks_minor, minor=True)
                         ax.xaxis.set_ticklabels(xticks_labels, minor=True)
@@ -2601,6 +2653,7 @@ class Viewer(Show, Figure, HelpDescription):
                         plt.setp(ax.get_xticklabels(which="both"), visible=False)
 
                     if self.rd_manhattan_log_scale:
+
                         ycns = np.arange(self.rd_manhattan_range[0], self.rd_manhattan_range[1], 1)
                         yticks = 2 ** ycns
                         yticks_labels = [str(t) for t in ycns]

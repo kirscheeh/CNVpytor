@@ -26,6 +26,7 @@ setup(
         'matplotlib>=2.2',
         'h5py>=2.9',
         'xlsxwriter>=1.3',
+        'pandas>=2.2',
     ],
     extras_require={
         ':python_version < "3.4"': [
