@@ -2598,7 +2598,7 @@ class Viewer(Show, Figure, HelpDescription):
         n = len(self.plot_files)
         self.new_figure(panel_count=n)
         
-        bbox = dict(boxstyle ="round", fc ="lightgray", pad=0.3, lw=0, alpha=0.3)
+        bbox = dict(boxstyle ="round", fc ="lightgray", pad=0.3, lw=0, alpha=0.25)
 
         for ii in range(len(self.plot_files)):
             ix = self.plot_files[ii]
@@ -2626,10 +2626,10 @@ class Viewer(Show, Figure, HelpDescription):
 
                         pos = range(start, start + len(his_p))
                         if self.markersize == "auto":
-                            plt.plot(pos, his_p, ls='', marker='.', markersize=1, alpha=0.25)
+                            plt.plot(pos, his_p, ls='', marker='.', markersize=1, alpha=0.3)
                             
                         else:
-                            plt.plot(pos, his_p, ls='', marker='.', markersize=self.markersize, alpha=0.25)
+                            plt.plot(pos, his_p, ls='', marker='.', markersize=self.markersize, alpha=0.3)
                         
                         arrowprops = dict(arrowstyle="->", connectionstyle="angle,angleA=0,angleB=90,rad=10")
                         
