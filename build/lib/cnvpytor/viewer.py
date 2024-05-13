@@ -2598,7 +2598,7 @@ class Viewer(Show, Figure, HelpDescription):
         n = len(self.plot_files)
         self.new_figure(panel_count=n)
         
-        bbox = dict(boxstyle ="round", fc ="lightgray", pad=0.3, lw=0, alpha=0.7)
+        bbox = dict(boxstyle ="round", fc ="lightgray", pad=0.3, lw=0, alpha=0.3)
 
         for ii in range(len(self.plot_files)):
             ix = self.plot_files[ii]
@@ -2618,6 +2618,7 @@ class Viewer(Show, Figure, HelpDescription):
                     xticks = [0]
                     xticks_minor = []
                     xticks_labels = []
+                    anno_number=0
                     for c, l in chroms:
 
                         mean, stdev = io.rd_normal_level(bin_size, rd_flag | FLAG_GC_CORR)
@@ -2629,13 +2630,18 @@ class Viewer(Show, Figure, HelpDescription):
                             
                         else:
                             plt.plot(pos, his_p, ls='', marker='.', markersize=self.markersize, alpha=0.25)
-                        print(pos)
-                        if anno:=self.get_annotation(io, c, mean, bin_size, rd_flag):
-                            print(anno)
-                            for annox, annoy, annoname in anno:
-                                plt.plot(annox+start, annoy, markersize=3, ls="", marker='o', color="black")
-                                plt.annotate(annoname, (annox+start, annoy+20), color="black", rotation=90, bbox=bbox)
                         
+                        arrowprops = dict(arrowstyle="->", connectionstyle="angle,angleA=0,angleB=90,rad=10")
+                        
+                        if anno:=self.get_annotation(io, c, mean, bin_size, rd_flag):
+                            for annox, annoy, annoname in anno:
+                                if anno_number % 2 == 0:
+                                    even=1
+                                else:
+                                    even=-4
+                                plt.plot(annox+start, annoy, markersize=3, ls="", marker='o', color="black")
+                                plt.annotate(annoname, (annox+start, annoy), (annox+start, annoy+10), color="black", rotation=90, bbox=bbox)
+                                anno_number+=1
                         xticks_minor.append(start + len(his_p) // 2 )
 
                         xticks_labels.append(Genome.canonical_chrom_name(c))
